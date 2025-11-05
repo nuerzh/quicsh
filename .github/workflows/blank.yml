@@ -37,10 +37,10 @@ jobs:
           openssl des3 -md sha256 -d -k ${{ secrets.TAR_PASS }} -salt -in extrars.tar.gz | tar -xzvf -
     
     - name: Build x86_64-unknown-linux-gnu
-      working-directory: clash-rs
       run: |
           rustup target add x86_64-unknown-linux-gnu
-          cargo +nightly build -r --target x86_64-unknown-linux-gnu
+          cd clash-rs
+          cargo +nightly build -r  -p clash-bin --target x86_64-unknown-linux-gnu
           ls target/release -al
       
     - name: Upload artifact
