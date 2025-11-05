@@ -1,112 +1,48 @@
-name: CI
+name: Rust
 
 on:
-  workflow_dispatch:
-    inputs:
-      allbuild:
-        description: '构建全部'
-        required: false
-        type: boolean
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
 
-defaults:
-  run:
-    shell: bash
 env:
-  PACKAGE: clash-rs 
+  CARGO_TERM_COLOR: always
 
-# Arm builder https://github.blog/changelog/2024-09-03-github-actions-arm64-linux-and-windows-runners-are-now-generally-available/
 jobs:
-  compile:
-    name: ${{ matrix.release-name || matrix.target || 'Unknown' }}
-    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Example
-          # when not set, default will be used (except target, cross)
-          # - os: ubuntu-latest
-          #   target: x86_64-unknown-linux-gnu
-          #   release-name: $target
-          #   toolchain: nightly
-          #   tool: cargo/cross
-          #   postfix: ""
-          #   extra-args: ""
-          #   components: ""
-          #   rustflags: "--cfg tokio_unstable"
+  build:
 
-          # Linux x86 gnu
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            tool: cross
-            extra-args: -F "plus"
-          # Linux arm gnu
-          # - os: ubuntu-latest
-          #   target: aarch64-unknown-linux-gnu
-          #   tool: cross
-          #   extra-args: -F "plus"
-          #   zig: "2.17"
-          # # Windows
-          # - os: windows-latest
-          #   target: x86_64-pc-windows-msvc
-          #   postfix: ".exe"
-          #   extra-args: -F "plus"
+    runs-on: ubuntu-latest
+    permissions: write-all
+    
+
     steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: true
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            /target
-          key: ${{ matrix.release-name || matrix.target }}-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: |
-            ${{ matrix.release-name || matrix.target }}
+    - uses: actions/checkout@v3
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - uses: ilammy/setup-nasm@v1
+    - name: Install Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: nightly
 
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.toolchain || env.RUST_TOOLCHAIN || 'nightly' }}
-          targets: ${{ matrix.build-std && 'x86_64-unknown-linux-gnu' || matrix.target }}
-          components: ${{ matrix.components || matrix.build-std && 'rustfmt,clippy,rust-src' || 'rustfmt,clippy' }}
-
-      - name: Install cross-rs/cross
-        if: matrix.tool == 'cross'
-        run: |
-          rm -f ~/.cargo/bin/cross*
-          cargo install cross --git https://github.com/cross-rs/cross
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          version: "23.x"
-
-      - name: Extra Modify
-        run: |
+    - name: extra Modify
+      run: |
           openssl des3 -md sha256 -d -k ${{ secrets.TAR_PASS }} -salt -in extrars.tar.gz | tar -xzvf -
-
-      - name: Cargo build
-        working-directory: clash-rs     
-        run: |
-          cross build --release --target ${{ matrix.target }} ${{ matrix.extra-args }} --package clash-rs
-        
-        env:
-          RUSTFLAGS: ${{ matrix.rustflags || '--cfg tokio_unstable' }}
-          CROSS_BUILD_ZIG: ${{ matrix.zig }}
-
-      - name: Rename binary
-        working-directory: clash-rs
-        run: mv target/${{ matrix.target }}/release/clash-rs${{ matrix.postfix }} ${{ env.PACKAGE }}-${{ matrix.release-name || matrix.target }}${{ matrix.postfix }}
-
-      - name: Upload binaries
-        uses: actions/upload-artifact@v5
-        if: ${{ !matrix.no-release }}
+    
+    - name: Build x86_64-unknown-linux-gnu
+      working-directory: clash-rs
+      run: |
+            rustup target add x86_64-unknown-linux-gnu
+            cargo build -r --target x86_64-unknown-linux-gnu
+      
+    - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.release-name || matrix.target }}
-          path: ${{ env.PACKAGE }}-${{ matrix.release-name || matrix.target }}${{ matrix.postfix }}
+          name: clash-linux-x86
+          path: clash-rs/target/release/clash-rs
