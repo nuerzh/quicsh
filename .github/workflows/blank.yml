@@ -87,6 +87,12 @@ jobs:
         with:
           version: "23.x"
 
+      - name: Install cross-rs/cross
+        if: matrix.tool == 'cross'
+        run: |
+          rm -f ~/.cargo/bin/cross*
+          cargo install cross --git https://github.com/cross-rs/cross
+
       - name: Extra Modify
         run: |
           openssl des3 -md sha256 -d -k ${{ secrets.TAR_PASS }} -salt -in extrars.tar.gz | tar -xzvf -
@@ -94,7 +100,7 @@ jobs:
       - name: Cargo build
         working-directory: clash-rs     
         run: |
-          cargo build --release --target ${{ matrix.target }} ${{ matrix.extra-args }} --package clash-rs
+          cross build --release --target ${{ matrix.target }} ${{ matrix.extra-args }} --package clash-rs
         
         env:
           RUSTFLAGS: ${{ matrix.rustflags || '--cfg tokio_unstable' }}
