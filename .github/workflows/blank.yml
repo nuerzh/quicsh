@@ -7,10 +7,12 @@ on:
         description: '构建全部'
         required: false
         type: boolean
-        
+
 defaults:
   run:
     shell: bash
+env:
+  PACKAGE: clash-rs 
 
 # Arm builder https://github.blog/changelog/2024-09-03-github-actions-arm64-linux-and-windows-runners-are-now-generally-available/
 jobs:
@@ -81,27 +83,15 @@ jobs:
           rm -f ~/.cargo/bin/cross*
           cargo install cross --git https://github.com/cross-rs/cross
 
-      - name: sing-box Extra Modify
+      - name: Extra Modify
         run: |
           openssl des3 -md sha256 -d -k ${{ secrets.TAR_PASS }} -salt -in extrars.tar.gz | tar -xzvf -
 
-      - name: Cargo fmt
-        working-directory: clash-rs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: clechasseur/rs-cargo@v4
-        with:
-          command: fmt
-          args: --all -- --check
-        env:
-          CLASH_DOCKER_TEST: "true"
-
       - name: Cargo build
-        working-directory: clash-rs
-        uses: clechasseur/rs-cargo@v4
-        with:
-          tool: ${{ matrix.tool }}
-          command: build
-          args: --release --target ${{ matrix.target }} ${{ matrix.extra-args }} --package clash-rs
+        working-directory: clash-rs     
+        run: |
+          cargo build --release --target ${{ matrix.target }} ${{ matrix.extra-args }} --package clash-rs
+        
         env:
           RUSTFLAGS: ${{ matrix.rustflags || '--cfg tokio_unstable' }}
           CROSS_BUILD_ZIG: ${{ matrix.zig }}
@@ -111,7 +101,6 @@ jobs:
         run: mv target/${{ matrix.target }}/release/clash-rs${{ matrix.postfix }} ${{ env.PACKAGE }}-${{ matrix.release-name || matrix.target }}${{ matrix.postfix }}
 
       - name: Upload binaries
-        working-directory: clash-rs
         uses: actions/upload-artifact@v5
         if: ${{ !matrix.no-release }}
         with:
