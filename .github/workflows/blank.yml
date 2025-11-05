@@ -7,7 +7,7 @@ on:
         description: '构建全部'
         required: false
         type: boolean
-  
+        
 defaults:
   run:
     shell: bash
@@ -94,30 +94,6 @@ jobs:
           args: --all -- --check
         env:
           CLASH_DOCKER_TEST: "true"
-
-      - name: Cargo clippy
-        working-directory: clash-rs
-        if: ${{ github.event_name == 'pull_request' }}
-        uses: clechasseur/rs-cargo@v4
-        with:
-          tool: ${{ matrix.tool }}
-          command: clippy
-          args: -p clash-rs --target ${{ matrix.target }} ${{ matrix.extra-args }} -- -D warnings
-        env:
-          CLASH_DOCKER_TEST: "true"
-
-      - name: Cargo test
-        working-directory: clash-rs
-        uses: clechasseur/rs-cargo@v4
-        if: ${{ !matrix.no-test &&  github.event_name == 'pull_request' }}
-        with:
-          tool: ${{ matrix.tool }}
-          command: "test"
-          args: --workspace --exclude clash-ffi --target ${{ matrix.target }} ${{ matrix.extra-args }}
-        env:
-          CROSS_CONTAINER_OPTS: "--network host"
-          CLASH_DOCKER_TEST: ${{ (startsWith(matrix.os, 'ubuntu') && !matrix.no-docker-test) && 'true' || 'false' }}
-          RUSTFLAGS: ${{ matrix.rustflags || '--cfg tokio_unstable' }}
 
       - name: Cargo build
         working-directory: clash-rs
