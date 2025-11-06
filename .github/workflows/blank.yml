@@ -49,7 +49,7 @@ jobs:
             tool: cargo
             extra-args: -F "plus"
             zig: "2.17"
-            rustflags: "-C linker=aarch64-linux-gnu-gcc -C link-arg=-fuse-ld=aarch64-linux-gnu-ld"
+            rustflags: "-C linker=aarch64-linux-gnu-gcc"
           # Windows
           # - os: windows-latest
           #   target: x86_64-pc-windows-msvc
