@@ -25,6 +25,10 @@ jobs:
       with:
         version: "23.x"
     - uses: ilammy/setup-nasm@v1
+    - name: appand env
+      run: echo $RUSTC_LOG
+      env:
+        RUSTC_LOG: "info"
 
     - name: Install Rust
       uses: actions-rs/toolchain@v1
@@ -40,7 +44,7 @@ jobs:
       run: |
           rustup target add x86_64-unknown-linux-gnu
           cd clash-rs
-          cargo +nightly build -r  -p clash-rs  --bins --target x86_64-unknown-linux-gnu
+          cargo +nightly build -r  -p clash-rs  --bins -v --target x86_64-unknown-linux-gnu
           ls target/release -al
       
     - name: Upload artifact
