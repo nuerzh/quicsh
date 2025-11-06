@@ -44,8 +44,9 @@ jobs:
       run: |
           rustup target add x86_64-unknown-linux-gnu
           cd clash-rs
-          cargo +nightly build -r  -p clash-rs  --bins -v --target x86_64-unknown-linux-gnu
-          ls target/release -al
+          cargo +nightly build -r  -p clash-rs  --bins --target x86_64-unknown-linux-gnu
+          ls target/ -al
+          ls target/x86_64-unknown-linux-gnu/release/ -al
       
     - name: Upload artifact
       uses: actions/upload-artifact@v4
