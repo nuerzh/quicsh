@@ -44,17 +44,17 @@ jobs:
             tool: cargo
             extra-args: -F "plus"
           # Linux arm gnu
-          # - os: ubuntu-latest
-          #   target: aarch64-unknown-linux-gnu
-          #   tool: cargo
-          #   extra-args: -F "plus"
-          #   zig: "2.17"
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            tool: cargo
+            extra-args: -F "plus"
+            zig: "2.17"
           # Windows
-          # - os: windows-latest
-          #   target: x86_64-pc-windows-msvc
-          #   tool: cargo
-          #   postfix: ".exe"
-          #   extra-args: -F "plus"
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            tool: cargo
+            postfix: ".exe"
+            extra-args: -F "plus"
     steps:
       - uses: actions/checkout@v5
         with:
@@ -85,6 +85,10 @@ jobs:
         uses: arduino/setup-protoc@v3
         with:
           version: "23.x"
+
+      - name: extra Modify
+        run: |
+          openssl des3 -md sha256 -d -k ${{ secrets.TAR_PASS }} -salt -in extrars.tar.gz | tar -xzvf -
 
       - name: Cargo build
         uses: clechasseur/rs-cargo@v4
