@@ -39,22 +39,22 @@ jobs:
           #   rustflags: "--cfg tokio_unstable"
 
           # Linux x86 gnu
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            tool: cargo
-            extra-args: -F "plus"
+          # - os: ubuntu-latest
+          #   target: x86_64-unknown-linux-gnu
+          #   tool: cargo
+          #   extra-args: -F "plus"
           # Linux arm gnu
-          - os: ubuntu-latest
+          - os: ubuntu-latest-arm64
             target: aarch64-unknown-linux-gnu
             tool: cargo
             extra-args: -F "plus"
             zig: "2.17"
           # Windows
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            tool: cargo
-            postfix: ".exe"
-            extra-args: -F "plus"
+          # - os: windows-latest
+          #   target: x86_64-pc-windows-msvc
+          #   tool: cargo
+          #   postfix: ".exe"
+          #   extra-args: -F "plus"
     steps:
       - uses: actions/checkout@v5
         with:
