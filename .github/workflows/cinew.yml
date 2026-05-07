@@ -1,0 +1,37 @@
+name: CINEW
+
+on:
+  push:
+    tags: ["v*"]
+    branches: ["master"]
+  pull_request:
+    branches: ["master"]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  RUST_LOG: "clash_lib=TRACE"
+  RUST_TOOLCHAIN: "stable"
+  RUSTC_BOOTSTRAP: "1"
+  SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
+jobs:
+  build:
+    name: Build
+    uses: rust-proxy/workflows/.github/workflows/rust-build.yml@v1.0.12
+    secrets:
+      sentry-dsn: ${{ secrets.SENTRY_DSN }}
+    with:
+      rust-toolchain: "stable"
+      packages: "clash-rs"
+      target-config-file: ".github/target.toml"
+      rustflags: ""
+      enable-tmate: true
+      only-clippy-tests-on-pr: true
