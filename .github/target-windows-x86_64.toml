@@ -1,0 +1,7 @@
+[[target]]
+os = "windows-latest"
+target = "x86_64-pc-windows-msvc"
+release-name = "x86_64-pc-windows-msvc"
+postfix = ".exe"
+extra-args = "-F plus"
+nasm = true
