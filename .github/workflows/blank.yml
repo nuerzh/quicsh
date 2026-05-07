@@ -79,8 +79,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.toolchain || env.RUST_TOOLCHAIN || 'nightly' }}
-          targets: ${{ matrix.build-std && 'x86_64-unknown-linux-gnu' || matrix.target }}
-          components: ${{ matrix.components || matrix.build-std && 'rustfmt,clippy,rust-src' || 'rustfmt,clippy' }}
+          # 直接使用矩阵定义的 target，确保 aarch64 被正确安装
+          targets: ${{ matrix.target }} 
+          components: "rustfmt,clippy${{ matrix.build-std && ',rust-src' || '' }}"
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -104,7 +105,7 @@ jobs:
           working-directory: clash-rs
           args: --release --target ${{ matrix.target }} ${{ matrix.extra-args }} --package clash-rs
         env:
-          RUSTFLAGS: ${{ matrix.rustflags || '--cfg tokio_unstable' }}
+          RUSTFLAGS: --cfg tokio_unstable ${{ matrix.rustflags }}
           CROSS_BUILD_ZIG: ${{ matrix.zig }}
 
       - name: Rename binary
