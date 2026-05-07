@@ -1,0 +1,6 @@
+[[target]]
+os = "ubuntu-latest"
+target = "x86_64-unknown-linux-gnu"
+release-name = "x86_64-unknown-linux-gnu"
+tool = "cross"
+extra-args = "-F plus"
