@@ -8,16 +8,18 @@ on:
     branches: ["master"]
   workflow_dispatch:
     inputs:
-      build_target:
-        description: '选择编译平台 (Select Target)'
-        required: true
-        default: 'all'
-        type: choice
-        options:
-          - all
-          - x86_64-unknown-linux-gnu
-          - aarch64-unknown-linux-gnu
-          - x86_64-pc-windows-msvc
+      build_x86_linux:
+        description: '编译 x86_64 Linux'
+        type: boolean
+        default: true
+      build_arm_linux:
+        description: '编译 aarch64 Linux (ARM64)'
+        type: boolean
+        default: true
+      build_windows:
+        description: '编译 x86_64 Windows'
+        type: boolean
+        default: true
 
 defaults:
   run:
@@ -39,13 +41,16 @@ jobs:
         include:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+            id: x86_linux
             extra-args: -F "plus"
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
+            id: arm_linux
             extra-args: -F "plus"
             rustflags: "-C linker=aarch64-linux-gnu-gcc"
           - os: windows-latest
             target: x86_64-pc-windows-msvc
+            id: windows
             postfix: ".exe"
             extra-args: -F "plus"
 
@@ -53,11 +58,22 @@ jobs:
       - name: Check if should run
         id: check_run
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.build_target }}" != "all" && "${{ github.event.inputs.build_target }}" != "${{ matrix.target }}" ]]; then
-            echo "should_skip=true" >> $GITHUB_OUTPUT
-          else
-            echo "should_skip=false" >> $GITHUB_OUTPUT
+          SHOULD_SKIP="true"
+          # 如果是自动触发 (push/pr)，则不跳过
+          if [[ "${{ github.event_name }}" != "workflow_dispatch" ]]; then
+            SHOULD_SKIP="false"
           fi
+          # 如果是手动触发，根据对应的勾选框判断
+          if [[ "${{ matrix.id }}" == "x86_linux" && "${{ github.event.inputs.build_x86_linux }}" == "true" ]]; then
+            SHOULD_SKIP="false"
+          fi
+          if [[ "${{ matrix.id }}" == "arm_linux" && "${{ github.event.inputs.build_arm_linux }}" == "true" ]]; then
+            SHOULD_SKIP="false"
+          fi
+          if [[ "${{ matrix.id }}" == "windows" && "${{ github.event.inputs.build_windows }}" == "true" ]]; then
+            SHOULD_SKIP="false"
+          fi
+          echo "should_skip=$SHOULD_SKIP" >> $GITHUB_OUTPUT
 
       - name: Checkout
         if: steps.check_run.outputs.should_skip != 'true'
@@ -99,6 +115,7 @@ jobs:
         if: steps.check_run.outputs.should_skip != 'true'
         working-directory: clash-rs
         run: |
+          # 强制使用 +nightly 并开启 -Z build-std 以解决 aarch64 core 库缺失问题
           cargo +nightly build --release --target ${{ matrix.target }} ${{ matrix.extra-args }} -Z build-std=std,panic_abort --package clash-rs
         env:
           RUSTFLAGS: --cfg tokio_unstable ${{ matrix.rustflags }}
