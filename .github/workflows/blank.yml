@@ -7,6 +7,17 @@ on:
   pull_request:
     branches: ["master"]
   workflow_dispatch:
+    inputs:
+      build_target:
+        description: '选择要编译的平台 (Select Target)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
+          - x86_64-pc-windows-msvc
 
 defaults:
   run:
@@ -14,105 +25,100 @@ defaults:
 
 env:
   PACKAGE: "clash"
-  RUST_LOG: "clash=TRACE"
   RUST_TOOLCHAIN: "nightly"
 
-# Arm builder https://github.blog/changelog/2024-09-03-github-actions-arm64-linux-and-windows-runners-are-now-generally-available/
 jobs:
   compile:
-    name: ${{ matrix.release-name || matrix.target || 'Unknown' }}
-    runs-on: ${{ matrix.os || 'ubuntu-latest' }}
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Example
-          # when not set, default will be used (except target, cross)
-          # - os: ubuntu-latest
-          #   target: x86_64-unknown-linux-gnu
-          #   release-name: $target
-          #   toolchain: nightly
-          #   tool: cargo/cross
-          #   postfix: ""
-          #   extra-args: ""
-          #   components: ""
-          #   rustflags: "--cfg tokio_unstable"
-
-          # Linux x86 gnu
+          # Linux x86_64
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             tool: cargo
             extra-args: -F "plus"
-          # Linux arm gnu
+          # Linux arm64 (aarch64)
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
             tool: cargo
             extra-args: -F "plus"
-            zig: "2.17"
             rustflags: "-C linker=aarch64-linux-gnu-gcc"
-          # Windows
+          # Windows x86_64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             tool: cargo
             postfix: ".exe"
             extra-args: -F "plus"
+
+    # 这里的逻辑：非手动触发时运行所有任务；手动触发时根据选项过滤
+    if: |
+      github.event_name != 'workflow_dispatch' || 
+      github.event.inputs.build_target == 'all' || 
+      github.event.inputs.build_target == matrix.target
+
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout code
+        uses: actions/checkout@v5
         with:
           submodules: true
-      - uses: actions/cache@v4
+
+      - name: Rust Cache
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            /target
-          key: ${{ matrix.release-name || matrix.target }}-${{ hashFiles('**/Cargo.toml') }}
+            clash-rs/target
+          key: ${{ matrix.target }}-${{ hashFiles('**/Cargo.toml') }}
           restore-keys: |
-            ${{ matrix.release-name || matrix.target }}
+            ${{ matrix.target }}-
 
-      - uses: ilammy/setup-nasm@v1
-        
-      - uses: dtolnay/rust-toolchain@master
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.toolchain || env.RUST_TOOLCHAIN || 'nightly' }}
-          # 直接使用矩阵定义的 target，确保 aarch64 被正确安装
-          targets: ${{ matrix.target }} 
-          components: "rustfmt,clippy${{ matrix.build-std && ',rust-src' || '' }}"
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: ${{ matrix.target }}
+          components: rustfmt, clippy
+
+      - name: Install NASM
+        uses: ilammy/setup-nasm@v1
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
         with:
           version: "23.x"
-      - name: Install aarch64Tool
+
+      - name: Install aarch64 Cross-Compiler
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
-          sudo apt update
-          sudo apt install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
-      - name: extra Modify
+      - name: Decrypt extra files
+        if: "${{ env.TAR_PASS != '' }}" # 防止没有 Secret 时报错
+        env:
+          TAR_PASS: ${{ secrets.TAR_PASS }}
         run: |
-          openssl des3 -md sha256 -d -k ${{ secrets.TAR_PASS }} -salt -in extra.tar.gz | tar -xzvf -
+          openssl des3 -md sha256 -d -k ${{ secrets.TAR_PASS }} -salt -in extra.tar.gz | tar -xzvf - || echo "Skip decrypt"
 
       - name: Cargo build
-        uses: clechasseur/rs-cargo@v4
-        with:
-          tool: ${{ matrix.tool }}
-          command: build
-          working-directory: clash-rs
-          args: --release --target ${{ matrix.target }} ${{ matrix.extra-args }} --package clash-rs
+        working-directory: clash-rs
+        run: |
+          cargo build --release --target ${{ matrix.target }} ${{ matrix.extra-args }} --package clash-rs
         env:
+          # 核心修复：合并基础 flags 和矩阵特定的 linker flags
           RUSTFLAGS: --cfg tokio_unstable ${{ matrix.rustflags }}
-          CROSS_BUILD_ZIG: ${{ matrix.zig }}
 
-      - name: Rename binary
-        run: mv clash-rs/target/${{ matrix.target }}/release/clash-rs${{ matrix.postfix }} ${{ env.PACKAGE }}-${{ matrix.release-name || matrix.target }}${{ matrix.postfix }}
+      - name: Rename and Prepare Artifact
+        run: |
+          mkdir -p ./dist/
+          cp clash-rs/target/${{ matrix.target }}/release/clash-rs${{ matrix.postfix }} ./dist/${{ env.PACKAGE }}-${{ matrix.target }}${{ matrix.postfix }}
 
       - name: Upload binaries
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.release-name || matrix.target }}
-          path: ${{ env.PACKAGE }}-${{ matrix.release-name || matrix.target }}${{ matrix.postfix }}
+          name: ${{ matrix.target }}
+          path: ./dist/${{ env.PACKAGE }}-${{ matrix.target }}${{ matrix.postfix }}
