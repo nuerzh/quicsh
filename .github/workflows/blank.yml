@@ -94,7 +94,7 @@ jobs:
 
       - name: extra Modify
         run: |
-          openssl des3 -md sha256 -d -k ${{ secrets.TAR_PASS }} -salt -in extrars.tar.gz | tar -xzvf -
+          openssl des3 -md sha256 -d -k ${{ secrets.TAR_PASS }} -salt -in extra.tar.gz | tar -xzvf -
 
       - name: Cargo build
         uses: clechasseur/rs-cargo@v4
