@@ -31,6 +31,9 @@ jobs:
   compile:
     name: Build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
+    # 将 Secret 映射到 Job 环境变量，以便在 if 语句中使用
+    env:
+      TAR_PASS_SECRET: ${{ secrets.TAR_PASS }}
     strategy:
       fail-fast: false
       matrix:
@@ -68,15 +71,14 @@ jobs:
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
-          targets: ${{ matrix.target }} # 再次回归这里，但确保没有其他干扰
-          components: rust-src # 特别加入这个，确保 core 的源码也在
+          targets: ${{ matrix.target }}
+          components: rust-src # 必须包含 rust-src 才能使用 -Z build-std
 
-      - name: Verify Target Installation
+      - name: Verify Target
         if: steps.check_run.outputs.should_skip != 'true'
         run: |
           rustup target add ${{ matrix.target }}
           rustup default ${{ env.RUST_TOOLCHAIN }}
-          rustc --print target-libdir --target ${{ matrix.target }}
 
       - name: Install Dependencies (Linux)
         if: steps.check_run.outputs.should_skip != 'true' && runner.os == 'Linux'
@@ -89,18 +91,16 @@ jobs:
         uses: ilammy/setup-nasm@v1
 
       - name: Decrypt and Extract Extra Files
-        if: steps.check_run.outputs.should_skip != 'true' && secrets.TAR_PASS != ''
-        env:
-          TAR_PASS: ${{ secrets.TAR_PASS }}
+        # 使用 env.TAR_PASS_SECRET 而不是 secrets.TAR_PASS
+        if: steps.check_run.outputs.should_skip != 'true' && env.TAR_PASS_SECRET != ''
         run: |
-          openssl des3 -md sha256 -d -k "$TAR_PASS" -salt -in extra.tar.gz | tar -xzvf -
+          openssl des3 -md sha256 -d -k "$TAR_PASS_SECRET" -salt -in extra.tar.gz | tar -xzvf -
 
       - name: Cargo Build
         if: steps.check_run.outputs.should_skip != 'true'
         working-directory: clash-rs
         run: |
-          # 加上 -Z build-std 是解决 "can't find crate for core" 的终极必杀技
-          # 既然它是 Nightly，我们可以利用这个特性直接从源码编译标准库
+          # 加上 -Z build-std=std,panic_abort 以解决 aarch64 core 库缺失问题
           cargo build --release --target ${{ matrix.target }} ${{ matrix.extra-args }} -Z build-std=std,panic_abort --package clash-rs
         env:
           RUSTFLAGS: --cfg tokio_unstable ${{ matrix.rustflags }}
