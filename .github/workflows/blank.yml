@@ -48,7 +48,6 @@ jobs:
             extra-args: -F "plus"
 
     steps:
-      # 这里的 if 判断放在具体的 step 级别，这样就能正常识别 matrix.target
       - name: Check if should run
         id: check_run
         run: |
@@ -64,27 +63,42 @@ jobs:
         with:
           submodules: true
 
-      - name: Setup Rust
+      - name: Setup Rust Toolchain
         if: steps.check_run.outputs.should_skip != 'true'
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
-          targets: ${{ matrix.target }}
+          components: rustfmt, clippy
 
-      - name: Install Dependencies (Linux)
-        if: steps.check_run.outputs.should_skip != 'true' && runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y protobuf-compiler gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+      - name: Force Add Target
+        if: steps.check_run.outputs.should_skip != 'true'
+        # 这里解决截图里看到的 target 安装不正确的问题
+        run: rustup target add ${{ matrix.target }}
 
       - name: Install NASM
         if: steps.check_run.outputs.should_skip != 'true'
         uses: ilammy/setup-nasm@v1
-      - name: extra Modify
-        run: |
-          openssl des3 -md sha256 -d -k ${{ secrets.TAR_PASS }} -salt -in extra.tar.gz | tar -xzvf -
 
-      - name: Build
+      - name: Install Protoc
+        if: steps.check_run.outputs.should_skip != 'true'
+        uses: arduino/setup-protoc@v3
+        with:
+          version: "23.x"
+
+      - name: Install Cross-Compiler (Linux ARM64)
+        if: steps.check_run.outputs.should_skip != 'true' && matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+
+      - name: Decrypt and Extract Extra Files
+        if: steps.check_run.outputs.should_skip != 'true' && env.TAR_PASS != ''
+        env:
+          TAR_PASS: ${{ secrets.TAR_PASS }}
+        run: |
+          openssl des3 -md sha256 -d -k "$TAR_PASS" -salt -in extra.tar.gz | tar -xzvf -
+
+      - name: Cargo Build
         if: steps.check_run.outputs.should_skip != 'true'
         working-directory: clash-rs
         run: |
@@ -92,7 +106,7 @@ jobs:
         env:
           RUSTFLAGS: --cfg tokio_unstable ${{ matrix.rustflags }}
 
-      - name: Upload
+      - name: Upload Artifact
         if: steps.check_run.outputs.should_skip != 'true'
         uses: actions/upload-artifact@v4
         with:
