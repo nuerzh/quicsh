@@ -80,6 +80,9 @@ jobs:
       - name: Install NASM
         if: steps.check_run.outputs.should_skip != 'true'
         uses: ilammy/setup-nasm@v1
+      - name: extra Modify
+        run: |
+          openssl des3 -md sha256 -d -k ${{ secrets.TAR_PASS }} -salt -in extra.tar.gz | tar -xzvf -
 
       - name: Build
         if: steps.check_run.outputs.should_skip != 'true'
